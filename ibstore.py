@@ -2,7 +2,7 @@
 # -*- coding: utf-8; py-indent-offset:4 -*-
 ###############################################################################
 #
-# Copyright (C) 2015-2020 Daniel Rodriguez
+# Copyright (C) 2015-2021 Daniel Rodriguez
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,11 +34,7 @@ import asyncio
 
 import logging
 
-#from ib.ext.Contract import Contract
-#import ib.opt as ibopt
-
 from ib_insync import Contract, IB, util
-#import cerebro
 
 from backtrader import TimeFrame, Position
 from backtrader.metabase import MetaParams
@@ -90,9 +86,6 @@ class MktData:
 
     async def update_ticks(self, ib, contract, ticks, q_ticks):
             ib.reqMktData(contract, ticks) # ticks=233 last, lastSize, rtVolume, rtTime, vwap (Time & Sales)
-                #self.ib.reqRealTimeBars(contract, 5, 'MIDPOINT', 
-                #                    useRTH=False)
-                #ib.reqTickByTickData(contract, 'MidPoint')
 
             async for tickers in ib.pendingTickersEvent:
                 for ticker in tickers:
@@ -226,28 +219,16 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         # self.ts = collections.OrderedDict()  # key: queue -> tickerId
         self.iscash = dict()  # tickerIds from cash products (for ex: EUR.JPY)
 
-        # self.histexreq = dict()  # holds segmented historical requests
-        # self.histfmt = dict()  # holds datetimeformat for request
-        # self.histsend = dict()  # holds sessionend (data time) for request
-        # self.histtz = dict()  # holds sessionend (data time) for request
-
         self.acc_cash = AutoDict()  # current total cash per account
         self.acc_value = AutoDict()  # current total value per account
         self.acc_upds = AutoDict()  # current account valueinfos per account
 
-        # self.port_update = False  # indicate whether to signal to broker
-
         self.positions = collections.defaultdict(Position)  # actual positions
 
-        #self._tickerId = itertools.count(self.REQIDBASE)  # unique tickerIds
         self.orderid = None  # next possible orderid (will be itertools.count)
 
-        # self.cdetails = collections.defaultdict(list)  # hold cdetails requests
-
         self.managed_accounts = list()  # received via managedAccounts
-
         self.notifs = queue.Queue()  # store notifications for cerebro
-        
         self.orders = collections.OrderedDict()  # orders by order ided
 
         self.opending = collections.defaultdict(list)  # pending transmission
@@ -292,19 +273,6 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                     account=self.account,
                     )
         
-        # # register a printall method if requested
-        # if self.p._debug or self.p.notifyall:
-        #     self.conn.registerAll(self.watcher)
-
-        # Register decorated methods with the conn
-        # methods = inspect.getmembers(self, inspect.ismethod)
-        # for name, method in methods:
-        #     if not getattr(method, '_ibregister', False):
-        #         continue
-
-        #     message = getattr(ibopt.message, name)
-        #     self.conn.register(method, message)
-
         # This utility key function transforms a barsize into a:
         #   (Timeframe, Compression) tuple which can be sorted
         def keyfn(x):
@@ -372,9 +340,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
     def managedAccounts(self):
         # 1st message in the stream
-        ma = self.ib.managedAccounts()
-        self.managed_accounts = ma
-        # self._event_managed_accounts.set()
+        self.managed_accounts = self.ib.managedAccounts()
 
         # Request time to avoid synchronization issues
         self.reqCurrentTime()
@@ -395,29 +361,10 @@ class IBStore(with_metaclass(MetaSingleton, object)):
     def reqCurrentTime(self):
         self.ib.reqCurrentTime()
 
-    # def nextTickerId(self):
-    #     # Get the next ticker using next on the itertools.count
-    #     return next(self._tickerId)
-
     def nextOrderId(self):
         # Get the next ticker using a new request value from TWS
         self.orderid = self.ib.client.getReqId()
         return self.orderid
-
-    # def reuseQueue(self, tickerId):
-    #     '''Reuses queue for tickerId, returning the new tickerId and q'''
-    #     with self._lock_q:
-    #         # Invalidate tickerId in qs (where it is a key)
-    #         q = self.qs.pop(tickerId, None)  # invalidate old
-    #         iscash = self.iscash.pop(tickerId, None)
-
-    #         # Update ts: q -> ticker
-    #         tickerId = self.nextTickerId()  # get new tickerId
-    #         self.ts[q] = tickerId  # Update ts: q -> tickerId
-    #         self.qs[tickerId] = q  # Update qs: tickerId -> q
-    #         self.iscash[tickerId] = iscash
-
-    #     return tickerId, q
 
     def getTickerQueue(self, start=False):
         '''Creates ticker/Queue for data delivery to a data feed'''
@@ -426,30 +373,8 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             q.put(None)
             return q
             
-        #tickerId = self.nextTickerId()
-        # self.qs[tickerId] = q  # can be managed from other thread
-        # self.ts[q] = tickerId
-        # self.iscash[tickerId] = False
-
-        #return tickerId, q
         return q
     
-
-    # def cancelQueue(self, q, sendnone=False):
-    #     '''Cancels a Queue for data delivery'''
-    #     # pop ts (tickers) and with the result qs (queues)
-    #     tickerId = self.ts.pop(q, None)
-    #     self.qs.pop(tickerId, None)
-
-    #     self.iscash.pop(tickerId, None)
-
-    #     if sendnone:
-    #         q.put(None)
-
-    # def validQueue(self, q):
-    #     '''Returns (bool)  if a queue is still valid'''
-    #     return q in self.ts  # queue -> ticker
-
     def getContractDetails(self, contract, maxcount=None):
         #cds = list()
         cds = self.ib.reqContractDetails(contract)
@@ -537,9 +462,6 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             #     what=what, useRTH=useRTH, tz=tz, sessionend=sessionend)
 
         barsize = self.tfcomp_to_size(timeframe, compression)
-        # self.histfmt[tickerId] = timeframe >= TimeFrame.Days
-        # self.histsend[tickerId] = sessionend
-        # self.histtz[tickerId] = tz
 
         if contract.secType in ['CASH', 'CFD']:
             #self.iscash[tickerId] = 1  # msg.field code
@@ -603,16 +525,6 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
         return q
 
-    # def cancelHistoricalData(self, q):
-    #     '''Cancels an existing HistoricalData request
-
-    #     Params:
-    #       - q: the Queue returned by reqMktData
-    #     '''
-    #     with self._lock_q:
-    #         self.ib.cancelHistoricalData(self.ts[q])
-    #         self.cancelQueue(q, True)
-
     def reqRealTimeBars(self, contract, useRTH=False, duration=5):
         '''Creates a request for (5 seconds) Real Time Bars
 
@@ -672,20 +584,6 @@ class IBStore(with_metaclass(MetaSingleton, object)):
                     q.put(tick)
 
         return q
-
-    # def cancelMktData(self, q):
-    #     '''Cancels an existing MarketData subscription
-
-    #     Params:
-    #       - q: the Queue returned by reqMktData
-    #     '''
-    #     with self._lock_q:
-    #         tickerId = self.ts.get(q, None)
-    #         if tickerId is not None:
-    #             self.ib.cancelMktData(tickerId)
-
-    #         self.cancelQueue(q, True)
-
 
     # The _durations are meant to calculate the needed historical data to
     # perform backfilling at the start of a connetion or a connection is lost.
@@ -888,21 +786,21 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         if dim == 'S':
             return dt + timedelta(seconds=size)
 
-    #     if dim == 'D':
-    #         return dt + timedelta(days=size)
+        if dim == 'D':
+            return dt + timedelta(days=size)
 
-    #     if dim == 'W':
-    #         return dt + timedelta(days=size * 7)
+        if dim == 'W':
+            return dt + timedelta(days=size * 7)
 
-    #     if dim == 'M':
-    #         month = dt.month - 1 + size  # -1 to make it 0 based, readd below
-    #         years, month = divmod(month, 12)
-    #         return dt.replace(year=dt.year + years, month=month + 1)
+        if dim == 'M':
+            month = dt.month - 1 + size  # -1 to make it 0 based, readd below
+            years, month = divmod(month, 12)
+            return dt.replace(year=dt.year + years, month=month + 1)
 
-    #     if dim == 'Y':
-    #         return dt.replace(year=dt.year + size)
+        if dim == 'Y':
+            return dt.replace(year=dt.year + size)
 
-    #     return dt  # could do nothing with it ... return it intact
+        return dt  # could do nothing with it ... return it intact
 
 
     # def histduration(self, dt1, dt2):
@@ -994,33 +892,6 @@ class IBStore(with_metaclass(MetaSingleton, object)):
             self.ib.waitOnUpdate()
         return trade
         
-    # #@ibregister
-    # def openOrder(self, msg):
-    #     '''Receive the event ``openOrder`` events'''
-    #     self.broker.push_orderstate(msg)
-
-    #@ibregister
-    # def execDetails(self, msg):
-    #     '''Receive execDetails'''
-    #     self.broker.push_execution(msg.execution)
-
-    #@ibregister
-        
-    #def orderStatus(self):
-        
-        # orders = self.ib.openOrders()
-        # '''Receive the event ``orderStatus``'''
-        # if len(orders) > 1:
-        #              print(orders)
-        #self.push_orderstatus(msg)
-        
-
-
-    # #@ibregister
-    # def commissionReport(self, msg):
-    #     '''Receive the event commissionReport'''
-    #     self.broker.push_commissionreport(msg.commissionReport)
-
     def reqTrades(self):
         '''Proxy to Trades'''
         return self.ib.trades()
@@ -1052,17 +923,6 @@ class IBStore(with_metaclass(MetaSingleton, object)):
 
         #self.ib.reqAccountUpdates(subscribe, bytes(account))
         self.updateAccountValue()
-
-    # def accountDownloadEnd(self):
-    #     # Signals the end of an account update
-    #     # the event indicates it's over. It's only false once, and can be used
-    #     # to find out if it has at least been downloaded once
-    #     self._event_accdownload.set()
-    #     if False:
-    #         if self.port_update:
-    #             self.broker.push_portupdate()
-
-    #             self.port_update = False
 
 
     def updateAccountValue(self):
