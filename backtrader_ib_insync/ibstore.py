@@ -871,7 +871,7 @@ class IBStore(with_metaclass(MetaSingleton, object)):
         if curr:
             contract.currency = curr
         if sectype in ['FUT', 'OPT', 'FOP']:
-            contract.expiry = expiry
+            contract.lastTradeDateOrContractMonth = expiry
         if sectype in ['OPT', 'FOP']:
             contract.strike = strike
             contract.right = right
