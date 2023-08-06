@@ -1,4 +1,4 @@
-!/usr/bin/env python
+#!/usr/bin/env python
 # -*- coding: utf-8; py-indent-offset:4 -*-
 ###############################################################################
 #
@@ -62,7 +62,7 @@ class Test(bt.Strategy):
 
         if not self.data_live:
             return
-
+        
         if len(self) % 2 == 0:
             print ('ORDER BUY Created')
             self.buy(size = 3000)
@@ -71,6 +71,7 @@ class Test(bt.Strategy):
             print ('ORDER SELL Created')
             self.sell(size = 3000)
 
+
 def run(args=None):
     cerebro = bt.Cerebro()
 
@@ -78,7 +79,7 @@ def run(args=None):
     end = datetime.datetime(2020, 5, 28)
     
     storekwargs = dict(
-            host= 'localhost', port=7497,
+            host= 'localhost', port=7498,
             clientId=None, 
             account=None,
             timeoffset=True,
@@ -97,8 +98,8 @@ def run(args=None):
     ibdata = ibstore.getdata
 
     datakwargs = dict(
-                timeframe= bt.TimeFrame.TFrame("Seconds"), compression=1,
-                historical=False, fromdate=start, todate = end,   
+                timeframe= bt.TimeFrame.TFrame("Minutes"), compression=1,
+                historical=True, fromdate=start, todate = end,   
                 rtbar=False,
                 qcheck=0.5,
                 what=None,
